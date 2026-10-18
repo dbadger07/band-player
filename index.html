@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Band Player</title>
+<meta name="theme-color" content="#f7f6f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1c1b" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Band Player">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-512.png">
+<style>
+:root{
+  --bg:#f7f6f3;--panel:#ffffff;--sunk:#f1efea;--line:rgba(20,20,19,.10);--line-2:rgba(20,20,19,.18);
+  --text:#1f1e1d;--text-2:#5f5e5a;--text-3:#94928b;
+  --accent:#2f6fd0;--accent-bg:rgba(47,111,208,.10);--on-accent:#fff;
+  --mute:#c43d3c;--mute-bg:rgba(196,61,60,.12);--solo:#a86a0c;--solo-bg:rgba(239,159,39,.20);
+  --meter:#1d9e75;--danger:#b3312f;--shadow:0 10px 30px rgba(0,0,0,.12),0 2px 6px rgba(0,0,0,.06);
+  --mono:ui-monospace,"SF Mono",Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#1c1c1b;--panel:#262624;--sunk:#202020;--line:rgba(255,255,255,.09);--line-2:rgba(255,255,255,.17);
+  --text:#ecebe6;--text-2:#b4b2a9;--text-3:#7d7b75;
+  --accent:#5d9bf0;--accent-bg:rgba(93,155,240,.16);--on-accent:#0b1220;
+  --mute:#f08a89;--mute-bg:rgba(240,138,137,.16);--solo:#f3bf5a;--solo-bg:rgba(243,191,90,.18);
+  --meter:#4fcfa0;--danger:#f08a89;--shadow:0 10px 30px rgba(0,0,0,.5);color-scheme:dark;
+}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+body{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+.screen{height:100%;display:flex;flex-direction:column}
+
+header{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--panel);border-bottom:.5px solid var(--line);flex-wrap:wrap}
+.logo{width:36px;height:36px;border-radius:10px;background:var(--text);color:var(--bg);display:grid;place-items:center;flex:none}
+.song{min-width:0;flex:1}
+.song b{display:block;font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chips{display:flex;gap:4px;margin-top:2px}
+.chip{font-size:11px;color:var(--text-2);background:var(--sunk);border-radius:6px;padding:1px 7px}
+.ib{width:40px;height:40px;border:none;background:transparent;border-radius:10px;color:var(--text-2);display:grid;place-items:center;flex:none}
+.ib:hover{background:var(--sunk);color:var(--text)}
+.ib.on{color:var(--accent);background:var(--accent-bg)}
+.btn{height:36px;padding:0 14px;border-radius:10px;border:.5px solid var(--line-2);background:var(--panel);font-size:13px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{background:var(--sunk)}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:transparent}
+.btn.danger{color:var(--danger)}
+.play{width:46px;height:46px;border-radius:50%;border:none;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;flex:none}
+.play:disabled{opacity:.4;cursor:default}
+.time{font:13px var(--mono);min-width:96px;text-align:center}
+.time span{color:var(--text-3)}
+.tempo{display:flex;align-items:center;gap:2px;font:12px var(--mono);color:var(--text-2)}
+.tempo button{width:28px;height:28px;border:none;border-radius:7px;background:transparent;color:var(--text-2)}
+.tempo button:hover{background:var(--sunk)}
+.seg{display:flex;background:var(--sunk);border-radius:10px;padding:2px}
+.seg button{border:none;background:transparent;height:32px;padding:0 12px;font-size:12px;border-radius:8px;color:var(--text-2)}
+.seg button.on{background:var(--panel);color:var(--text);box-shadow:0 0 0 .5px var(--line-2)}
+
+/* library */
+.lib{flex:1;overflow:auto;padding:24px 20px 40px}
+.lib h1{font-size:22px;font-weight:600;margin:0 0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.card{position:relative;text-align:left;background:var(--panel);border:.5px solid var(--line);border-radius:14px;padding:16px 16px 14px;min-height:120px;display:flex;flex-direction:column;gap:6px}
+.card:hover{border-color:var(--line-2)}
+.card .t{font-size:15px;font-weight:600;padding-right:36px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .m{font-size:12px;color:var(--text-2)}
+.card .d{font-size:11px;color:var(--text-3);margin-top:auto}
+.card .dots{display:flex;gap:4px;margin-top:4px}
+.card .dots i{width:8px;height:8px;border-radius:50%}
+.card .del{position:absolute;top:8px;right:8px;width:34px;height:34px}
+.card.new{align-items:center;justify-content:center;border-style:dashed;color:var(--text-2);gap:8px}
+
+/* player */
+.progress{height:6px;background:var(--sunk);position:relative;cursor:pointer;touch-action:none;flex:none}
+.progress i{position:absolute;inset:0 auto 0 0;width:0;background:var(--accent)}
+.trackbar{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--panel);border-bottom:.5px solid var(--line)}
+.tchips{display:flex;gap:6px;overflow-x:auto;flex:1;min-width:0;scrollbar-width:none}
+.tchips::-webkit-scrollbar{display:none}
+.tchip{height:32px;padding:0 12px;border-radius:16px;border:.5px solid var(--line-2);background:transparent;font-size:12px;color:var(--text-2);display:inline-flex;align-items:center;gap:6px;white-space:nowrap;flex:none}
+.tchip i{width:8px;height:8px;border-radius:50%}
+.tchip.on{background:var(--text);color:var(--bg);border-color:transparent}
+main{flex:1;min-height:0;position:relative;display:flex}
+.score{flex:1;overflow:auto;position:relative;background:var(--panel);-webkit-overflow-scrolling:touch}
+.score .at{padding:8px 0 40px}
+.loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--text-3);font-size:13px;pointer-events:none;text-align:center;padding:20px}
+.banner{position:absolute;left:12px;right:12px;top:10px;z-index:1001;background:var(--mute-bg);color:var(--danger);border-radius:10px;padding:8px 12px;font-size:12px}
+
+/* editor drawer */
+.drawer{position:absolute;top:0;right:0;bottom:0;width:min(440px,100%);background:var(--panel);border-left:.5px solid var(--line);box-shadow:var(--shadow);display:flex;flex-direction:column;z-index:1002}
+.drawer .dh{display:flex;align-items:center;gap:8px;padding:10px 10px 10px 16px;border-bottom:.5px solid var(--line)}
+.drawer .dh b{flex:1;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;min-width:0}
+.drawer .dh b i{width:10px;height:10px;border-radius:50%;flex:none}
+.drawer textarea{flex:1;resize:none;border:none;background:var(--sunk);color:var(--text);font:13px/1.8 var(--mono);padding:12px 16px;outline:none;white-space:pre;tab-size:2}
+.hint{font-size:11.5px;color:var(--text-2);padding:10px 16px;border-top:.5px solid var(--line);line-height:1.7}
+.hint code{font:11.5px var(--mono);background:var(--sunk);padding:1px 5px;border-radius:4px}
+.msg{font-size:12px;padding:8px 16px;color:var(--text-3);border-top:.5px solid var(--line);min-height:34px}
+.msg.err{color:var(--danger)}
+.drawer .df{display:flex;justify-content:space-between;padding:10px 16px;border-top:.5px solid var(--line)}
+
+/* alphaTab cursor + highlights */
+.at-cursor-bar{background:var(--accent-bg)}
+.at-cursor-beat{background:var(--accent);width:3px;border-radius:2px}
+.at-highlight *{fill:var(--accent);stroke:var(--accent)}
+.at-selection div{background:var(--accent-bg)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .at-surface{filter:invert(.92) hue-rotate(180deg)}}
+
+.mixer{background:var(--panel);border-top:.5px solid var(--line);padding:4px 0 6px;max-height:34vh;overflow:auto;flex:none}
+.row{display:grid;grid-template-columns:4px minmax(90px,150px) 100px minmax(0,1fr) 40px 52px;align-items:center;gap:12px;padding:6px 16px}
+.row.off{opacity:.45}
+.row .sw{height:30px;border-radius:2px}
+.row .nm{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .sub{font-size:11px;color:var(--text-3)}
+.row .v{font:12px var(--mono);color:var(--text-2);text-align:right}
+.ms{display:flex;gap:4px}
+.ms button{width:30px;height:28px;border-radius:7px;border:.5px solid var(--line-2);background:transparent;font-size:11px;font-weight:600;color:var(--text-2);display:grid;place-items:center}
+.ms .m.on{background:var(--mute-bg);color:var(--mute);border-color:transparent}
+.ms .s.on{background:var(--solo-bg);color:var(--solo);border-color:transparent}
+.meter{display:flex;flex-direction:column;gap:3px}
+.meter i{height:4px;border-radius:2px;background:var(--line);position:relative;overflow:hidden}
+.meter b{position:absolute;inset:0 auto 0 0;width:0;background:var(--meter);transition:width .08s linear}
+.row.master{border-top:.5px solid var(--line);margin-top:4px;padding-top:10px}
+input[type=range]{width:100%;accent-color:var(--accent);height:28px}
+
+/* instrument picker */
+dialog{border:none;border-radius:16px;background:var(--panel);color:var(--text);padding:0;width:min(560px,calc(100% - 32px));box-shadow:var(--shadow)}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+dialog .dh{display:flex;align-items:center;padding:14px 10px 6px 20px}
+dialog .dh b{flex:1;font-size:16px;font-weight:600}
+dialog p{margin:0 20px 12px;font-size:13px;color:var(--text-2)}
+.inst{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:0 20px 20px}
+.inst button{height:64px;border-radius:12px;border:.5px solid var(--line-2);background:var(--panel);text-align:left;padding:0 14px;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.inst button:hover{background:var(--sunk)}
+.inst button b{font-size:14px;font-weight:600}
+.inst button span{font-size:11px;color:var(--text-3)}
+
+@media (max-width:820px){
+  .row{grid-template-columns:4px minmax(70px,1fr) 100px minmax(0,1.4fr) 36px;gap:8px}
+  .row .meter{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ library ============ -->
+<div class="screen" id="libScreen">
+  <header>
+    <div class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="17" r="3"/><circle cx="16" cy="15" r="3"/><path d="M9 17V5l10-2v12"/></svg></div>
+    <div class="song"><b>Band Player</b></div>
+    <button class="btn" id="import"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>파일 가져오기</button>
+    <button class="btn primary" id="newSong"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>새 곡</button>
+    <input type="file" id="file" hidden accept=".gp,.gp3,.gp4,.gp5,.gpx,.gp7,.xml,.musicxml,.mxl,.cap,.tex,.txt">
+  </header>
+  <div class="lib">
+    <h1>내 곡</h1>
+    <div class="grid" id="songGrid"></div>
+  </div>
+</div>
+
+<!-- ============ player ============ -->
+<div class="screen" id="playerScreen" hidden>
+  <header>
+    <button class="ib" id="back" aria-label="곡 목록으로"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div class="song"><b id="title">불러오는 중</b><div class="chips" id="chips"></div></div>
+    <button class="ib" id="toStart" aria-label="처음으로"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+    <button class="play" id="play" aria-label="재생" disabled><svg id="playIcon" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+    <button class="ib" id="loop" aria-label="반복" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></svg></button>
+    <div class="time" aria-live="off"><b id="cur">0:00</b> <span>/ <span id="end">0:00</span></span></div>
+    <div class="tempo" aria-label="재생 속도">
+      <button id="slower" aria-label="느리게">−</button><span id="bpm">—</span><button id="faster" aria-label="빠르게">+</button>
+    </div>
+    <div class="seg" id="view" role="group" aria-label="악보 보기">
+      <button data-p="Score">오선지</button><button data-p="Tab">타브</button><button data-p="ScoreTab" class="on">둘 다</button>
+    </div>
+  </header>
+  <div class="progress" id="progress" role="slider" aria-label="재생 위치" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0"><i id="bar"></i></div>
+  <div class="trackbar">
+    <div class="tchips" id="tchips" role="group" aria-label="보이는 악기"></div>
+    <button class="btn" id="songInfo">곡 정보</button>
+    <button class="btn primary" id="addInst"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>악기 추가</button>
+  </div>
+
+  <main>
+    <section class="score" id="scroll">
+      <div class="loading" id="loading">악기 소리 불러오는 중…</div>
+      <div class="banner" id="banner" hidden></div>
+      <div class="at" id="at"></div>
+    </section>
+    <aside class="drawer" id="drawer" hidden aria-label="악보 편집">
+      <div class="dh"><b><i id="edDot"></i><span id="edTitle"></span></b>
+        <button class="ib" id="edClose" aria-label="편집 닫기"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="alphaTex 입력"></textarea>
+      <div class="hint" id="hint"></div>
+      <div class="msg" id="msg">입력하면 바로 밴드 악보에 반영돼요.</div>
+      <div class="df"><button class="btn danger" id="edDelete">이 악기 삭제</button><button class="btn" id="edDone">완료</button></div>
+    </aside>
+  </main>
+
+  <section class="mixer" id="mixer" aria-label="믹서"></section>
+</div>
+
+<dialog id="instDlg">
+  <div class="dh"><b id="instTitle">악기 추가</b><button class="ib" id="instClose" aria-label="닫기"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <p>추가할 악기를 고르면 빈 악보가 만들어지고 바로 편집할 수 있어요.</p>
+  <div class="inst" id="instGrid"></div>
+</dialog>
+
+<script src="vendor/alphaTab.min.js"></script>
+<script>
+// ---------- data ----------
+const SAMPLES = [String.raw`\title "Midnight Drive"
+\tempo 100
+\track "Guitar"
+  \instrument 29
+  \staff {score tabs}
+  :8 0.6 2.5 2.4 2.5 0.6 2.5 2.4 2.5 |
+  3.6 2.5 0.4 2.5 3.6 2.5 0.4 2.5 |
+  :4 (0.6 2.5 2.4) (0.6 2.5 2.4) :8 (3.6 5.5) (3.6 5.5) :4 (5.6 7.5) |
+  (0.6 2.5 2.4) r (2.6 4.5) :8 2.3{h} 4.3 |
+\track "Bass"
+  \instrument 33
+  \staff {score tabs}
+  \tuning (G2 D2 A1 E1)
+  \clef F4
+  :8 0.4 0.4 0.4 0.4 0.4 0.4 2.4 2.4 |
+  3.4 3.4 3.4 3.4 3.4 3.4 2.4 2.4 |
+  :4 0.4 0.4 3.4 5.4 |
+  0.4 r 2.4 2.3 |
+\track "Drums"
+  \instrument percussion
+  \articulation defaults
+  :8 (KickHit HiHatClosed) HiHatClosed (SnareHit HiHatClosed) HiHatClosed (KickHit HiHatClosed) (KickHit HiHatClosed) (SnareHit HiHatClosed) HiHatClosed |
+  (KickHit HiHatClosed) HiHatClosed (SnareHit HiHatClosed) HiHatClosed (KickHit HiHatClosed) (KickHit HiHatClosed) (SnareHit HiHatClosed) HiHatClosed |
+  (KickHit CrashHighHit) HiHatClosed (SnareHit HiHatClosed) HiHatClosed (KickHit HiHatClosed) (KickHit HiHatClosed) (SnareHit HiHatClosed) HiHatClosed |
+  (KickHit CrashHighHit) r (SnareHit HiHatClosed) r SnareHit SnareHit SnareHit SnareHit |
+`, String.raw`\title "Easy Rock"
+\tempo 120
+\track "Guitar"
+  \instrument 30
+  \staff {score tabs}
+  :8 (0.6 2.5) (0.6 2.5) (0.6 2.5) (0.6 2.5) (0.6 2.5) (0.6 2.5) (0.6 2.5) (0.6 2.5) |
+  (0.5 2.4) (0.5 2.4) (0.5 2.4) (0.5 2.4) (0.5 2.4) (0.5 2.4) (0.5 2.4) (0.5 2.4) |
+  (0.4 2.3) (0.4 2.3) (0.4 2.3) (0.4 2.3) (0.4 2.3) (0.4 2.3) (0.4 2.3) (0.4 2.3) |
+  :4 (0.6 2.5) (3.6 5.5) :2 (5.6 7.5) |
+\track "Bass"
+  \instrument 34
+  \staff {score tabs}
+  \tuning (G2 D2 A1 E1)
+  \clef F4
+  :8 0.4 0.4 0.4 0.4 0.4 0.4 0.4 0.4 |
+  0.3 0.3 0.3 0.3 0.3 0.3 0.3 0.3 |
+  0.2 0.2 0.2 0.2 0.2 0.2 0.2 0.2 |
+  :4 0.4 3.4 :2 5.4 |
+\track "Drums"
+  \instrument percussion
+  \articulation defaults
+  :8 (KickHit CrashHighHit) HiHatClosed (SnareHit HiHatClosed) HiHatClosed (KickHit HiHatClosed) (KickHit HiHatClosed) (SnareHit HiHatClosed) HiHatClosed |
+  (KickHit HiHatClosed) HiHatClosed (SnareHit HiHatClosed) HiHatClosed (KickHit HiHatClosed) (KickHit HiHatClosed) (SnareHit HiHatClosed) HiHatClosed |
+  (KickHit HiHatClosed) HiHatClosed (SnareHit HiHatClosed) HiHatClosed (KickHit HiHatClosed) (KickHit HiHatClosed) (SnareHit HiHatClosed) HiHatClosed |
+  (KickHit CrashHighHit) r (SnareHit HiHatClosed) r :16 SnareHit SnareHit SnareHit SnareHit :8 SnareHit SnareHit |
+`];
+// Each template is the head of a new \track block; the body (empty bars) is generated.
+const INSTRUMENTS = [
+  { label: '어쿠스틱 기타', name: 'Acoustic Guitar', head: '\\instrument 25\n  \\staff {score tabs}' },
+  { label: '일렉 기타 (클린)', name: 'Clean Guitar', head: '\\instrument 27\n  \\staff {score tabs}' },
+  { label: '일렉 기타 (드라이브)', name: 'Drive Guitar', head: '\\instrument 29\n  \\staff {score tabs}' },
+  { label: '베이스', name: 'Bass', head: '\\instrument 33\n  \\staff {score tabs}\n  \\tuning (G2 D2 A1 E1)\n  \\clef F4' },
+  { label: '드럼', name: 'Drums', head: '\\instrument percussion\n  \\articulation defaults' },
+  // shortcut: piano is one treble staff, add a second (bass clef) staff if left-hand parts are needed
+  { label: '피아노', name: 'Piano', head: '\\instrument 0\n  \\staff {score}' },
+  { label: '일렉 피아노', name: 'E.Piano', head: '\\instrument 4\n  \\staff {score}' },
+  { label: '오르간', name: 'Organ', head: '\\instrument 16\n  \\staff {score}' },
+  { label: '신스', name: 'Synth', head: '\\instrument 81\n  \\staff {score}' },
+  { label: '스트링', name: 'Strings', head: '\\instrument 48\n  \\staff {score}' },
+  { label: '브라스', name: 'Brass', head: '\\instrument 61\n  \\staff {score}' },
+  { label: '보컬 멜로디', name: 'Vocal', head: '\\instrument 54\n  \\staff {score}' },
+];
+const FAMILIES = ['Piano','Chromatic perc.','Organ','Guitar','Bass','Strings','Ensemble','Brass','Reed','Pipe','Synth lead','Synth pad','Synth FX','Ethnic','Percussive','Sound FX'];
+const COLORS = ['#D85A30','#7F77DD','#1D9E75','#378ADD','#D4537E','#BA7517','#639922','#888780'];
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+// ---------- song storage (this device only) ----------
+const LIB = 'bandplayer.songs';
+let songs;
+try { songs = JSON.parse(localStorage.getItem(LIB)); } catch {}
+if (!Array.isArray(songs)) songs = SAMPLES.map((tex, i) => ({ id: 'sample' + i, tex, updated: Date.now() - i }));
+const persist = () => { try { localStorage.setItem(LIB, JSON.stringify(songs)); } catch { showBanner('저장 공간이 부족해서 저장하지 못했어요.'); } };
+const titleOf = tex => (tex.match(/\\title\s+"([^"]*)"/) || [])[1] || '제목 없음';
+let song = null; // the open song
+
+// shortcut: splits on lines starting with \track; a \track inside a quoted string would confuse it
+function splitTex(tex) {
+  const parts = tex.split(/(?=^[ \t]*\\track\b)/m);
+  const head = /^\s*\\track\b/.test(parts[0]) ? '' : parts.shift();
+  return { head, tracks: parts.map(p => p.endsWith('\n') ? p : p + '\n') };
+}
+const joinTex = ({ head, tracks }) => (head && !head.endsWith('\n') ? head + '\n' : head) + tracks.join('');
+
+// ---------- library screen ----------
+function showLibrary() {
+  api.stop(); closeEditor();
+  song = null;
+  $('playerScreen').hidden = true; $('libScreen').hidden = false;
+  const grid = $('songGrid'); grid.innerHTML = '';
+  const add = document.createElement('button');
+  add.className = 'card new';
+  add.innerHTML = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>새 곡 만들기</span>';
+  add.onclick = newSong; grid.appendChild(add);
+  [...songs].sort((a, b) => b.updated - a.updated).forEach(s => {
+    const names = [...s.tex.matchAll(/\\track\s*\(?\s*"([^"]*)"/g)].map(m => m[1]);
+    const tempo = (s.tex.match(/\\tempo\s+(\d+)/) || [])[1];
+    const c = document.createElement('div');
+    c.className = 'card'; c.tabIndex = 0; c.setAttribute('role', 'button');
+    c.innerHTML = `<div class="t">${esc(titleOf(s.tex))}</div>
+      <div class="m">${esc(names.join(' · ') || '악기 없음')}</div>
+      <div class="dots">${names.map((_, i) => `<i style="background:${COLORS[i % COLORS.length]}"></i>`).join('')}</div>
+      <div class="d">${tempo ? tempo + ' bpm · ' : ''}${new Date(s.updated).toLocaleDateString('ko-KR')}</div>
+      <button class="ib del" aria-label="${esc(titleOf(s.tex))} 삭제"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button>`;
+    c.onclick = e => { if (!e.target.closest('.del')) openSong(s); };
+    c.onkeydown = e => { if (e.key === 'Enter' && e.target === c) openSong(s); };
+    c.querySelector('.del').onclick = () => {
+      if (!confirm(`"${titleOf(s.tex)}"을(를) 삭제할까요? 되돌릴 수 없어요.`)) return;
+      songs = songs.filter(x => x !== s); persist(); showLibrary();
+    };
+    grid.appendChild(c);
+  });
+}
+
+function openSong(s) {
+  song = s; tracks = []; viewName = null;
+  api.stop(); api.playbackSpeed = 1;
+  $('libScreen').hidden = true; $('playerScreen').hidden = false;
+  renderSong();
+}
+
+function newSong() { pickInstrument(true); }
+
+$('import').onclick = () => $('file').click();
+$('file').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  let tex;
+  try {
+    if (/\.(tex|txt)$/i.test(f.name)) tex = await f.text();
+    else {
+      const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(await f.arrayBuffer()), api.settings);
+      tex = new alphaTab.exporter.AlphaTexExporter().exportToString(score);
+    }
+  } catch { alert('이 파일은 열 수 없어요. Guitar Pro, MusicXML, alphaTex 파일인지 확인해 주세요.'); return; }
+  const s = { id: crypto.randomUUID?.() || String(Date.now()), tex, updated: Date.now() };
+  songs.push(s); persist(); openSong(s);
+};
+
+// ---------- alphaTab ----------
+const api = new alphaTab.AlphaTabApi($('at'), {
+  core: { fontDirectory: 'vendor/font/', scriptFile: new URL('vendor/alphaTab.min.js', location.href).href },
+  display: { staveProfile: 'ScoreTab', scale: 1 },
+  player: {
+    playerMode: 'EnabledSynthesizer',
+    soundFont: 'vendor/soundfont/sonivox.sf3',
+    scrollElement: $('scroll'),
+    enableCursor: true, enableAnimatedBeatCursor: true, enableElementHighlighting: true
+  }
+});
+
+const fmt = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+let tracks = [], endMs = 0, viewName = null, lastError = null;
+
+// Parse ourselves instead of api.tex() so syntax errors reach the user; api.tex fails silently.
+function parse(tex) {
+  try {
+    const imp = new alphaTab.importer.AlphaTexImporter();
+    imp.initFromString(tex, api.settings);
+    return { score: imp.readScore() };
+  } catch (e) {
+    const d = e.parserDiagnostics ? e : (e.inner || e.cause || {});
+    const first = ['lexerDiagnostics', 'parserDiagnostics', 'semanticDiagnostics'].flatMap(k => d[k] ? d[k].items : [])[0];
+    return { error: first ? { line: first.start?.line, text: first.message.split(', expected')[0] } : { text: String(e.message || e) } };
+  }
+}
+
+function renderSong() {
+  const { score, error } = parse(song.tex);
+  lastError = error || null;
+  updateEditorMsg();
+  showBanner(error && $('drawer').hidden ? '악보에 문법 오류가 있어서 마지막으로 정상이던 상태를 보여주고 있어요. ' + error.text : '');
+  if (!score) return;
+  const sel = score.tracks.filter(t => t.name === viewName);
+  if (!sel.length) viewName = null;
+  api.renderScore(score, (sel.length ? sel : score.tracks).map(t => t.index));
+}
+function showBanner(text) { $('banner').textContent = text; $('banner').hidden = !text; }
+
+// ---------- header, track chips, mixer ----------
+api.scoreLoaded.on(score => {
+  $('title').textContent = score.title || '제목 없음';
+  const ts = score.masterBars[0];
+  $('chips').replaceChildren(...[ts && ts.timeSignatureNumerator + '/' + ts.timeSignatureDenominator, score.tracks.length + ' tracks', score.artist]
+    .filter(Boolean).map(t => Object.assign(document.createElement('span'), { className: 'chip', textContent: t })));
+  updateBpm();
+  buildMixer(score);
+  buildChips(score);
+});
+
+function buildChips(score) {
+  const box = $('tchips'); box.innerHTML = '';
+  const mk = (label, name, color) => {
+    const b = document.createElement('button');
+    b.className = 'tchip' + (viewName === name ? ' on' : '');
+    b.setAttribute('aria-pressed', viewName === name);
+    b.innerHTML = (color ? `<i style="background:${color}"></i>` : '') + esc(label);
+    b.onclick = () => { viewName = name; renderSong(); };
+    box.appendChild(b);
+  };
+  mk('전체 밴드', null);
+  score.tracks.forEach((t, i) => mk(t.name || 'Track ' + (i + 1), t.name, COLORS[i % COLORS.length]));
+}
+
+function buildMixer(score) {
+  // keep mixer settings while editing, and re-send them so the synth matches the UI
+  const prev = Object.fromEntries(tracks.map(s => [s.t.name, s]));
+  tracks = score.tracks.map((t, i) => {
+    const p = prev[t.name] || { vol: 100, mute: false, solo: false };
+    api.changeTrackVolume([t], p.vol / 100); api.changeTrackMute([t], p.mute); api.changeTrackSolo([t], p.solo);
+    return { t, color: COLORS[i % COLORS.length], vol: p.vol, mute: p.mute, solo: p.solo, level: 0 };
+  });
+  const m = $('mixer'); m.innerHTML = '';
+  tracks.forEach((s, i) => {
+    const r = document.createElement('div'); r.className = 'row';
+    r.innerHTML = `<span class="sw" style="background:${s.color}"></span>
+      <div><div class="nm"></div><div class="sub"></div></div>
+      <div class="ms"><button class="m" aria-pressed="false">M</button><button class="s" aria-pressed="false">S</button>
+        <button class="e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></button></div>
+      <input type="range" min="0" max="150" step="1" value="${s.vol}">
+      <span class="v">${s.vol}</span>
+      <div class="meter"><i><b></b></i><i><b></b></i></div>`;
+    const name = s.t.name || ('Track ' + (i + 1));
+    r.querySelector('.nm').textContent = name;
+    r.querySelector('.sub').textContent = s.t.staves[0]?.isPercussion ? 'Drums' : FAMILIES[s.t.playbackInfo.program >> 3] + ' · ' + s.t.playbackInfo.program;
+    r.querySelector('.m').setAttribute('aria-label', name + ' 음소거');
+    r.querySelector('.s').setAttribute('aria-label', name + ' 솔로');
+    r.querySelector('.e').setAttribute('aria-label', name + ' 악보 편집');
+    r.querySelector('input').setAttribute('aria-label', name + ' 볼륨');
+    r.querySelector('.m').onclick = () => { s.mute = !s.mute; api.changeTrackMute([s.t], s.mute); paint(); };
+    r.querySelector('.s').onclick = () => { s.solo = !s.solo; api.changeTrackSolo([s.t], s.solo); paint(); };
+    r.querySelector('.e').onclick = () => openEditor(i);
+    r.querySelector('input').oninput = e => { s.vol = +e.target.value; r.querySelector('.v').textContent = s.vol; api.changeTrackVolume([s.t], s.vol / 100); };
+    s.row = r; m.appendChild(r);
+  });
+  const r = document.createElement('div'); r.className = 'row master';
+  r.innerHTML = `<span class="sw" style="background:var(--text-3)"></span><div><div class="nm" style="font-weight:600">Master</div></div><div></div>
+    <input type="range" min="0" max="100" step="1" value="${Math.round(api.masterVolume * 100)}" aria-label="마스터 볼륨"><span class="v">${Math.round(api.masterVolume * 100)}</span><div class="meter"><i><b></b></i><i><b></b></i></div>`;
+  r.querySelector('input').oninput = e => { api.masterVolume = e.target.value / 100; r.querySelector('.v').textContent = e.target.value; };
+  master = r; m.appendChild(r);
+  paint();
+}
+let master;
+const audible = s => !s.mute && (!tracks.some(x => x.solo) || s.solo);
+function paint() {
+  tracks.forEach(s => {
+    s.row.classList.toggle('off', !audible(s));
+    const [m, so] = s.row.querySelectorAll('.ms button');
+    m.classList.toggle('on', s.mute); m.setAttribute('aria-pressed', s.mute);
+    so.classList.toggle('on', s.solo); so.setAttribute('aria-pressed', s.solo);
+  });
+}
+
+// activity meters: alphaTab gives no audio levels per track, so show note activity scaled by volume
+api.activeBeatsChanged.on(e => {
+  const hit = new Set();
+  e.activeBeats.forEach(b => { if (!b.isRest) hit.add(b.voice.bar.staff.track.index); });
+  tracks.forEach((s, i) => { if (hit.has(i) && audible(s)) s.level = Math.min(100, s.vol * 0.85); });
+});
+(function decay() {
+  let sum = 0;
+  tracks.forEach(s => {
+    s.level *= 0.88; sum = Math.max(sum, s.level);
+    const [a, b] = s.row.querySelectorAll('.meter b');
+    a.style.width = s.level + '%'; b.style.width = s.level * 0.93 + '%';
+  });
+  if (master) { const v = sum * api.masterVolume; const [a, b] = master.querySelectorAll('.meter b'); a.style.width = v + '%'; b.style.width = v * 0.93 + '%'; }
+  requestAnimationFrame(decay);
+})();
+
+// ---------- editor drawer ----------
+let edIndex = null; // track index, or -1 for song info (header)
+const HINT_FRET = '<code>3.5</code> 5번 줄 3프렛 · <code>:4</code> 이후 4분음표 (<code>:8</code> 8분) · <code>r</code> 쉼표 · <code>|</code> 마디 · <code>(0.1 2.2)</code> 동시에 · <code>3.3{h}</code> 해머링';
+const HINT_PITCH = '<code>C4 D4 E4</code> 음 이름+옥타브 · <code>C#4 Eb4</code> 반음 · <code>:4</code> 이후 4분음표 (<code>:8</code> 8분) · <code>r</code> 쉼표 · <code>|</code> 마디 · <code>(C4 E4 G4)</code> 화음';
+const HINT_DRUM = '<code>KickHit</code> 킥 · <code>SnareHit</code> 스네어 · <code>HiHatClosed</code> / <code>HiHatOpen</code> 하이햇 · <code>CrashHighHit</code> 크래시 · <code>RideMiddle</code> 라이드 · <code>HighTomHit</code> 탐 · <code>(KickHit HiHatClosed)</code> 동시에 · <code>:8</code> 8분음표 · <code>r</code> 쉼표 · <code>|</code> 마디';
+const HINT_HEAD = '<code>\\title "제목"</code> 곡 제목 · <code>\\artist "이름"</code> 아티스트 · <code>\\tempo 100</code> 빠르기';
+
+function openEditor(i) {
+  const parts = splitTex(song.tex), t = api.score?.tracks[i];
+  // tex without \track blocks (e.g. one implicit track) can only be edited as a whole
+  if (i >= 0 && parts.tracks.length !== api.score?.tracks.length) i = -2;
+  edIndex = i;
+  $('src').value = i === -1 ? parts.head : i === -2 ? song.tex : parts.tracks[i];
+  $('edTitle').textContent = i === -1 ? '곡 정보' : i === -2 ? '전체 악보' : (t.name || 'Track ' + (i + 1));
+  $('edDot').style.background = i >= 0 ? COLORS[i % COLORS.length] : 'var(--text-3)';
+  $('edDot').hidden = i < 0;
+  $('edDelete').hidden = i < 0;
+  $('hint').innerHTML = i === -1 ? HINT_HEAD : t?.staves[0]?.isPercussion ? HINT_DRUM : t?.staves[0]?.showTablature ? HINT_FRET : HINT_PITCH;
+  $('drawer').hidden = false;
+  showBanner('');
+  updateEditorMsg();
+  if (i >= 0 && viewName !== null && viewName !== t.name) { viewName = t.name; renderSong(); }
+}
+function closeEditor() { $('drawer').hidden = true; edIndex = null; if (song && lastError) renderSong(); }
+$('edClose').onclick = $('edDone').onclick = closeEditor;
+$('songInfo').onclick = () => openEditor(-1);
+
+function updateEditorMsg() {
+  const m = $('msg');
+  if (!lastError) { m.textContent = '입력하면 바로 밴드 악보에 반영돼요.'; m.classList.remove('err'); return; }
+  // turn the song-wide line number into one inside the part being edited
+  let where = '';
+  if (lastError.line && edIndex !== null && edIndex !== -2) {
+    const parts = splitTex(song.tex), before = edIndex === -1 ? '' : parts.head + parts.tracks.slice(0, edIndex).join('');
+    const start = before.split('\n').length - (before ? 1 : 0), len = $('src').value.split('\n').length;
+    const local = lastError.line - start;
+    where = local >= 1 && local <= len ? local + '번째 줄: ' : '다른 악기 악보에 오류가 있어요: ';
+  } else if (lastError.line) where = lastError.line + '번째 줄: ';
+  m.textContent = where + lastError.text; m.classList.add('err');
+}
+
+let texTimer;
+$('src').addEventListener('input', () => {
+  clearTimeout(texTimer);
+  texTimer = setTimeout(() => {
+    const parts = splitTex(song.tex), v = $('src').value;
+    if (edIndex === -1) parts.head = v; else if (edIndex === -2) { song.tex = v; } else parts.tracks[edIndex] = v.endsWith('\n') ? v : v + '\n';
+    if (edIndex !== -2) song.tex = joinTex(parts);
+    song.updated = Date.now(); persist();
+    renderSong();
+  }, 500);
+});
+
+$('edDelete').onclick = () => {
+  const name = api.score.tracks[edIndex]?.name;
+  if (!confirm(`"${name}" 악보를 삭제할까요?`)) return;
+  const parts = splitTex(song.tex); parts.tracks.splice(edIndex, 1);
+  song.tex = joinTex(parts); song.updated = Date.now(); persist();
+  $('drawer').hidden = true; edIndex = null;
+  renderSong();
+};
+
+// ---------- add instrument ----------
+let forNewSong = false;
+INSTRUMENTS.forEach(inst => {
+  const b = document.createElement('button');
+  b.innerHTML = `<b>${esc(inst.label)}</b><span>${esc(inst.name)}</span>`;
+  b.onclick = () => addInstrument(inst);
+  $('instGrid').appendChild(b);
+});
+function pickInstrument(isNew) {
+  forNewSong = isNew;
+  $('instTitle').textContent = isNew ? '새 곡: 첫 악기를 골라 주세요' : '악기 추가';
+  $('instDlg').showModal();
+}
+$('addInst').onclick = () => pickInstrument(false);
+$('instClose').onclick = () => $('instDlg').close();
+
+function addInstrument(inst) {
+  $('instDlg').close();
+  const score = forNewSong ? null : api.score;
+  const mb = score?.masterBars[0];
+  const num = mb?.timeSignatureNumerator || 4, den = mb?.timeSignatureDenominator || 4, bars = score?.masterBars.length || 4;
+  const taken = new Set(score?.tracks.map(t => t.name));
+  let name = inst.name, n = 2;
+  while (taken.has(name)) name = inst.name + ' ' + n++;
+  const bar = 'r '.repeat(num) + '|';
+  const block = `\\track "${name}"\n  ${inst.head}\n  :${den} ${bar}\n` + `  ${bar}\n`.repeat(bars - 1);
+  if (forNewSong) {
+    const s = { id: crypto.randomUUID?.() || String(Date.now()), tex: `\\title "새 곡"\n\\tempo 100\n${block}`, updated: Date.now() };
+    songs.push(s); persist(); openSong(s);
+  } else {
+    const parts = splitTex(song.tex); parts.tracks.push(block);
+    song.tex = joinTex(parts); song.updated = Date.now(); persist();
+  }
+  viewName = name; renderSong();
+  // open the editor once the new score (with the new track) has loaded
+  const once = () => { api.scoreLoaded.off(once); openEditor(api.score.tracks.length - 1); };
+  api.scoreLoaded.on(once);
+}
+
+// ---------- transport ----------
+api.soundFontLoad.on(e => { if ($('loading')) $('loading').textContent = '악기 소리 불러오는 중… ' + Math.round(e.loaded / e.total * 100) + '%'; });
+// fires again on every re-render, so the overlay may already be gone
+api.playerReady.on(() => { $('play').disabled = false; $('loading')?.remove(); });
+// Browsers block the audio engine for pages opened straight from disk (file://).
+if (location.protocol === 'file:') $('loading').textContent = '파일을 직접 열면 브라우저 보안 때문에 재생할 수 없어요. 같은 폴더의 "Band Player 실행"을 더블클릭해서 열어 주세요.';
+api.playerStateChanged.on(e => {
+  const playing = e.state === 1;
+  $('playIcon').innerHTML = playing ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
+  $('play').setAttribute('aria-label', playing ? '일시정지' : '재생');
+});
+api.playerPositionChanged.on(e => {
+  endMs = e.endTime;
+  $('cur').textContent = fmt(e.currentTime); $('end').textContent = fmt(e.endTime);
+  const p = e.endTime ? e.currentTime / e.endTime * 100 : 0;
+  $('bar').style.width = p + '%'; $('progress').setAttribute('aria-valuenow', Math.round(p));
+});
+$('play').onclick = () => api.playPause();
+$('toStart').onclick = () => api.stop();
+$('back').onclick = showLibrary;
+$('loop').onclick = function () { api.isLooping = !api.isLooping; this.classList.toggle('on', api.isLooping); this.setAttribute('aria-pressed', api.isLooping); };
+
+function seek(ev) { const r = $('progress').getBoundingClientRect(); api.timePosition = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)) * endMs; }
+$('progress').addEventListener('pointerdown', e => { seek(e); $('progress').setPointerCapture(e.pointerId); });
+$('progress').addEventListener('pointermove', e => { if (e.buttons) seek(e); });
+$('progress').addEventListener('keydown', e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') api.timePosition = Math.max(0, api.timePosition + (e.key === 'ArrowRight' ? 5000 : -5000)); });
+
+function updateBpm() { const t = api.score?.tempo || 120; $('bpm').textContent = Math.round(t * api.playbackSpeed) + ' bpm'; }
+$('slower').onclick = () => { api.playbackSpeed = Math.max(0.25, +(api.playbackSpeed - 0.05).toFixed(2)); updateBpm(); };
+$('faster').onclick = () => { api.playbackSpeed = Math.min(2, +(api.playbackSpeed + 0.05).toFixed(2)); updateBpm(); };
+
+$('view').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  [...$('view').children].forEach(x => x.classList.toggle('on', x === b));
+  api.settings.display.staveProfile = alphaTab.StaveProfile[b.dataset.p];
+  api.updateSettings(); api.render();
+};
+
+// space = play/pause when not typing
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && song && !e.target.closest('textarea,input,button,dialog') && !$('play').disabled) { e.preventDefault(); api.playPause(); }
+});
+
+showLibrary();
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
