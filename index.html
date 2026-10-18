@@ -615,9 +615,13 @@ $('progress').addEventListener('pointerdown', e => { seek(e); $('progress').setP
 $('progress').addEventListener('pointermove', e => { if (e.buttons) seek(e); });
 $('progress').addEventListener('keydown', e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') api.timePosition = Math.max(0, api.timePosition + (e.key === 'ArrowRight' ? 5000 : -5000)); });
 
-function updateBpm() { const t = api.score?.tempo || 120; $('bpm').textContent = Math.round(t * api.playbackSpeed) + ' bpm'; }
-$('slower').onclick = () => { api.playbackSpeed = Math.max(0.25, +(api.playbackSpeed - 0.05).toFixed(2)); updateBpm(); };
-$('faster').onclick = () => { api.playbackSpeed = Math.min(2, +(api.playbackSpeed + 0.05).toFixed(2)); updateBpm(); };
+const songTempo = () => api.score?.tempo || 120;
+const bpmNow = () => Math.round(songTempo() * api.playbackSpeed);
+function updateBpm() { $('bpm').textContent = bpmNow() + ' bpm'; }
+// ±1 bpm, kept within the 0.25x–2x speeds the player handles
+const stepBpm = d => { const t = songTempo(); api.playbackSpeed = Math.min(t * 2, Math.max(Math.ceil(t / 4), bpmNow() + d)) / t; updateBpm(); };
+$('slower').onclick = () => stepBpm(-1);
+$('faster').onclick = () => stepBpm(1);
 
 $('view').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
