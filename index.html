@@ -153,7 +153,8 @@ dialog p{margin:0 20px 12px;font-size:13px;color:var(--text-2)}
     <div class="song"><b>Band Player</b></div>
     <button class="btn" id="import"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>파일 가져오기</button>
     <button class="btn primary" id="newSong"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>새 곡</button>
-    <input type="file" id="file" hidden accept=".gp,.gp3,.gp4,.gp5,.gpx,.gp7,.xml,.musicxml,.mxl,.cap,.tex,.txt">
+    <!-- no accept filter: iPadOS greys out extensions it has no file type for (.tex, .gp…); the handler validates instead -->
+    <input type="file" id="file" hidden>
   </header>
   <div class="lib">
     <h1>내 곡</h1>
