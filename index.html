@@ -635,6 +635,19 @@ document.addEventListener('keydown', e => {
   if (e.code === 'Space' && song && !e.target.closest('textarea,input,button,dialog') && !$('play').disabled) { e.preventDefault(); api.playPause(); }
 });
 
+// Keep the screen on while the app is open. The browser drops the lock whenever the app is hidden,
+// so ask again on return; also on taps, since some browsers only grant it after a user action.
+let wakeLock = null;
+function keepAwake() {
+  if (wakeLock || !navigator.wakeLock || document.visibilityState !== 'visible') return;
+  wakeLock = navigator.wakeLock.request('screen')
+    .then(l => { l.addEventListener('release', () => { wakeLock = null; }); return l; })
+    .catch(() => { wakeLock = null; });
+}
+keepAwake();
+document.addEventListener('visibilitychange', keepAwake);
+document.addEventListener('pointerdown', keepAwake);
+
 showLibrary();
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js');
 </script>
