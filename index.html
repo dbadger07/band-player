@@ -333,7 +333,7 @@ function showLibrary() {
 }
 
 function openSong(s) {
-  song = s; tracks = []; viewName = null;
+  song = s; tracks = []; viewName = null; lastBeatProblems = [];
   api.stop(); api.playbackSpeed = 1;
   $('libScreen').hidden = true; $('playerScreen').hidden = false;
   renderSong();
@@ -369,7 +369,7 @@ const api = new alphaTab.AlphaTabApi($('at'), {
 });
 
 const fmt = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
-let tracks = [], endMs = 0, viewName = null, lastError = null;
+let tracks = [], endMs = 0, viewName = null, lastError = null, lastBeatProblems = [];
 
 // Parse ourselves instead of api.tex() so syntax errors reach the user; api.tex fails silently.
 function parse(tex) {
@@ -384,11 +384,31 @@ function parse(tex) {
   }
 }
 
+// A bar whose notes don't add up to its time signature pushes that instrument out of time with the band.
+// The usual cause: a length like :1 sticks to every following note until the next :4/:8.
+function beatProblems(score) {
+  const out = [], n = x => +x.toFixed(2);
+  score.tracks.forEach(t => t.staves.forEach(st => st.bars.forEach((b, i) => {
+    const mb = b.masterBar;
+    if (mb.isAnacrusis) return;
+    const want = mb.calculateDuration(), unit = 3840 / mb.timeSignatureDenominator;
+    b.voices.filter(v => !v.isEmpty).forEach(v => {
+      const got = v.beats.reduce((s, x) => s + x.playbackDuration, 0);
+      if (got !== want) out.push({ track: t.index, text: `${t.name} ${i + 1}번째 마디: ${n(want / unit)}박이어야 하는데 ${n(got / unit)}박이에요` });
+    });
+  })));
+  return out;
+}
+const listProblems = ps => ps.slice(0, 2).map(p => p.text).join(' · ') + (ps.length > 2 ? ` 외 ${ps.length - 2}곳` : '');
+
 function renderSong() {
   const { score, error } = parse(song.tex);
   lastError = error || null;
+  lastBeatProblems = score ? beatProblems(score) : lastBeatProblems;
   updateEditorMsg();
-  showBanner(error && $('drawer').hidden ? '악보에 문법 오류가 있어서 마지막으로 정상이던 상태를 보여주고 있어요. ' + error.text : '');
+  showBanner(!$('drawer').hidden ? ''
+    : error ? '악보에 문법 오류가 있어서 마지막으로 정상이던 상태를 보여주고 있어요. ' + error.text
+    : lastBeatProblems.length ? '박자가 맞지 않는 마디가 있어서 그 악기가 밴드와 어긋나요. ' + listProblems(lastBeatProblems) : '');
   if (!score) return;
   const sel = score.tracks.filter(t => t.name === viewName);
   if (!sel.length) viewName = null;
@@ -489,9 +509,9 @@ api.activeBeatsChanged.on(e => {
 
 // ---------- editor drawer ----------
 let edIndex = null; // track index, or -1 for song info (header)
-const HINT_FRET = '<code>3.5</code> 5번 줄 3프렛 · <code>:4</code> 이후 4분음표 (<code>:8</code> 8분) · <code>r</code> 쉼표 · <code>|</code> 마디 · <code>(0.1 2.2)</code> 동시에 · <code>3.3{h}</code> 해머링';
-const HINT_PITCH = '<code>C4 D4 E4</code> 음 이름+옥타브 · <code>C#4 Eb4</code> 반음 · <code>:4</code> 이후 4분음표 (<code>:8</code> 8분) · <code>r</code> 쉼표 · <code>|</code> 마디 · <code>(C4 E4 G4)</code> 화음';
-const HINT_DRUM = '<code>KickHit</code> 킥 · <code>SnareHit</code> 스네어 · <code>HiHatClosed</code> / <code>HiHatOpen</code> 하이햇 · <code>CrashHighHit</code> 크래시 · <code>RideMiddle</code> 라이드 · <code>HighTomHit</code> 탐 · <code>(KickHit HiHatClosed)</code> 동시에 · <code>:8</code> 8분음표 · <code>r</code> 쉼표 · <code>|</code> 마디';
+const HINT_FRET = '<code>3.5</code> 5번 줄 3프렛 · <code>:4</code> 이후 4분음표 (<code>:8</code> 8분) · <code>r</code> 쉼표 · <code>|</code> 마디 · <code>(0.1 2.2)</code> 동시에 · <code>3.3{h}</code> 해머링 · 길이는 바꿀 때까지 이어져요: 온쉼표 뒤엔 <code>:1 r | :4 …</code>처럼 다시 지정';
+const HINT_PITCH = '<code>C4 D4 E4</code> 음 이름+옥타브 · <code>C#4 Eb4</code> 반음 · <code>:4</code> 이후 4분음표 (<code>:8</code> 8분) · <code>r</code> 쉼표 · <code>|</code> 마디 · <code>(C4 E4 G4)</code> 화음 · 길이는 바꿀 때까지 이어져요: 온쉼표 뒤엔 <code>:1 r | :4 …</code>처럼 다시 지정';
+const HINT_DRUM = '<code>KickHit</code> 킥 · <code>SnareHit</code> 스네어 · <code>HiHatClosed</code> / <code>HiHatOpen</code> 하이햇 · <code>CrashHighHit</code> 크래시 · <code>RideMiddle</code> 라이드 · <code>HighTomHit</code> 탐 · <code>(KickHit HiHatClosed)</code> 동시에 · <code>:8</code> 8분음표 · <code>r</code> 쉼표 · <code>|</code> 마디 · 길이는 바꿀 때까지 이어져요: 온쉼표 뒤엔 <code>:1 r | :4 …</code>처럼 다시 지정';
 const HINT_HEAD = '<code>\\title "제목"</code> 곡 제목 · <code>\\artist "이름"</code> 아티스트 · <code>\\tempo 100</code> 빠르기';
 
 function openEditor(i) {
@@ -510,13 +530,17 @@ function openEditor(i) {
   updateEditorMsg();
   if (i >= 0 && viewName !== null && viewName !== t.name) { viewName = t.name; renderSong(); }
 }
-function closeEditor() { $('drawer').hidden = true; edIndex = null; if (song && lastError) renderSong(); }
+function closeEditor() { $('drawer').hidden = true; edIndex = null; if (song && (lastError || lastBeatProblems.length)) renderSong(); }
 $('edClose').onclick = $('edDone').onclick = closeEditor;
 $('songInfo').onclick = () => openEditor(-1);
 
 function updateEditorMsg() {
   const m = $('msg');
-  if (!lastError) { m.textContent = '입력하면 바로 밴드 악보에 반영돼요.'; m.classList.remove('err'); return; }
+  if (!lastError) {
+    const mine = lastBeatProblems.filter(p => edIndex < 0 || p.track === edIndex);
+    m.textContent = mine.length ? '박자가 맞지 않아요. ' + listProblems(mine) : '입력하면 바로 밴드 악보에 반영돼요.';
+    m.classList.toggle('err', mine.length > 0); return;
+  }
   // turn the song-wide line number into one inside the part being edited
   let where = '';
   if (lastError.line && edIndex !== null && edIndex !== -2) {
