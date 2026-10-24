@@ -359,7 +359,9 @@ $('file').onchange = async e => {
 // ---------- alphaTab ----------
 const api = new alphaTab.AlphaTabApi($('at'), {
   core: { fontDirectory: 'vendor/font/', scriptFile: new URL('vendor/alphaTab.min.js', location.href).href },
-  display: { staveProfile: 'ScoreTab', scale: 1 },
+  // Equal-width bars (see barsPerRow). The default packs bars by note count, which squeezes a
+  // whole-rest bar to a sliver, so the cursor crawls through it and seems to skip the next downbeat.
+  display: { staveProfile: 'ScoreTab', scale: 1, systemsLayoutMode: 'UseModelLayout' },
   player: {
     playerMode: 'EnabledSynthesizer',
     soundFont: 'vendor/soundfont/sonivox.sf3',
@@ -412,9 +414,22 @@ function renderSong() {
   if (!score) return;
   const sel = score.tracks.filter(t => t.name === viewName);
   if (!sel.length) viewName = null;
+  setBarsPerRow(score);
   api.renderScore(score, (sel.length ? sel : score.tracks).map(t => t.index));
 }
 function showBanner(text) { $('banner').textContent = text; $('banner').hidden = !text; }
+
+// With equal-width bars, choose how many fit per row from the screen width (~280px each).
+// A track's own layout from an imported file (systemsLayout) still wins over this default.
+function setBarsPerRow(score) {
+  const n = Math.max(1, Math.floor($('scroll').clientWidth / 280));
+  score.tracks.forEach(t => { t.defaultSystemsLayout = n; });
+}
+let resizeTimer;
+addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { if (song && api.score) { setBarsPerRow(api.score); api.render(); } }, 300);
+});
 
 // ---------- header, track chips, mixer ----------
 api.scoreLoaded.on(score => {
